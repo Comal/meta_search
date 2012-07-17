@@ -161,23 +161,33 @@ module MetaSearch
 
     def set_sort(val)
       return if val.blank?
-      column, direction = val.split('.')
-      direction ||= 'asc'
-      if ['asc','desc'].include?(direction)
-        if @base.respond_to?("sort_by_#{column}_#{direction}")
+      #multiple column search
+      if val.scan('_and_').present?
+        attribute_names = []
+        val.split('_and_').each do |v|
+          column, direction = v.split('.')
+          direction ||= 'asc'
+          if ['asc', 'desc'].include?(direction)
+            attribute_names << {attr: column, dir: direction}
+          end
+        end
+        attributes = attribute_names.map {|n| get_attribute(n[:attr])}
+        if attribute_names.size == attributes.compact.size
           search_attributes['meta_sort'] = val
-          @relation = @relation.send("sort_by_#{column}_#{direction}")
-        elsif attribute = get_attribute(column)
-          search_attributes['meta_sort'] = val
-          @relation = @relation.order(attribute.send(direction).to_sql)
-        elsif column.scan('_and_').present?
-          attribute_names = column.split('_and_')
-          attributes = attribute_names.map {|n| get_attribute(n)}
-          if attribute_names.size == attributes.compact.size # We found all attributes
+          attributes.each_with_index do |attribute, i|
+            @relation = @relation.order(attribute.send(attribute_names[i][:dir]).to_sql)
+          end
+        end
+      else
+        column, direction = val.split('.')
+        direction ||= 'asc'
+        if ['asc','desc'].include?(direction)
+          if @base.respond_to?("sort_by_#{column}_#{direction}")
             search_attributes['meta_sort'] = val
-            attributes.each do |attribute|
-              @relation = @relation.order(attribute.send(direction).to_sql)
-            end
+            @relation = @relation.send("sort_by_#{column}_#{direction}")
+          elsif attribute = get_attribute(column)
+            search_attributes['meta_sort'] = val
+            @relation = @relation.order(attribute.send(direction).to_sql)
           end
         end
       end

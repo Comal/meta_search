@@ -167,17 +167,22 @@ module MetaSearch
         val.split('_and_').each do |v|
           column, direction = v.split('.')
           direction ||= 'asc'
+
           if ['asc', 'desc'].include?(direction)
             attribute_names << {attr: column, dir: direction}
           end
         end
-        attributes = attribute_names.map {|n| get_attribute(n[:attr])}
-        if attribute_names.size == attributes.compact.size
-          search_attributes['meta_sort'] = val
-          attributes.each_with_index do |attribute, i|
-            @relation = @relation.order(attribute.send(attribute_names[i][:dir]).to_sql)
+        attribute_names.each_with_index do |attr|
+         
+          if @base.respond_to?("sort_by_#{attr[:attr]}_#{attr[:dir]}")
+            @relation = @relation.send("sort_by_#{attr[:attr]}_#{attr[:dir]}")
+          elsif attribute = get_attribute(attr[:attr])
+            @relation = @relation.order(attribute.send(attr[:dir]).to_sql)
+          else
+            return
           end
         end
+        search_attributes['meta_sort'] = val
       else
         column, direction = val.split('.')
         direction ||= 'asc'
